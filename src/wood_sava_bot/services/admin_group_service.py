@@ -41,14 +41,15 @@ class AdminChatResolver:
             await self._repository.deactivate_group(event.chat_id)
             return
 
-        if event.chat_type != "supergroup" or not event.forum_enabled:
+        normalized = await self._normalize_group_event(event)
+        if normalized.chat_type != "supergroup" or not normalized.forum_enabled:
             return
 
         await self._repository.register_group(
-            event.chat_id,
-            event.title,
-            event.chat_type,
-            event.forum_enabled,
+            normalized.chat_id,
+            normalized.title,
+            normalized.chat_type,
+            normalized.forum_enabled,
         )
         await self._maybe_warn_about_multiple_groups()
 
@@ -71,3 +72,17 @@ class AdminChatResolver:
         )
         for group in groups:
             await self._telegram_api.send_message(group.chat_id, text)
+
+    async def _normalize_group_event(self, event: GroupEvent) -> GroupEvent:
+        try:
+            chat = await self._telegram_api.get_chat(event.chat_id)
+        except Exception:
+            return event
+
+        return GroupEvent(
+            chat_id=chat.get("id", event.chat_id),
+            title=chat.get("title", event.title),
+            chat_type=chat.get("type", event.chat_type),
+            forum_enabled=bool(chat.get("is_forum", event.forum_enabled)),
+            bot_is_member=event.bot_is_member,
+        )

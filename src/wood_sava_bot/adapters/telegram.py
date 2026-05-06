@@ -132,6 +132,9 @@ class TelegramBotAPI:
     async def get_file(self, file_id: str) -> dict[str, Any]:
         return await self._request("getFile", {"file_id": file_id})
 
+    async def get_chat(self, chat_id: int | str) -> dict[str, Any]:
+        return await self._request("getChat", {"chat_id": chat_id})
+
     async def download_file(self, file_id: str) -> tuple[bytes, str]:
         payload = await self.get_file(file_id)
         file_path = payload["file_path"]
