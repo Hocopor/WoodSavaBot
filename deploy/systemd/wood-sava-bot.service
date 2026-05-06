@@ -1,0 +1,16 @@
+[Unit]
+Description=Wood_Sava_Bot service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/wood-sava-bot
+EnvironmentFile=/opt/wood-sava-bot/.env
+ExecStart=/opt/wood-sava-bot/.venv/bin/wood-sava-bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

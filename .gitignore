@@ -1,2 +1,11 @@
-/AGENTS.md
-/LIVE_PLAN.md
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+*.pyc
+*.pyo
+*.db
+dist/
+build/
+.mypy_cache/
+.ruff_cache/

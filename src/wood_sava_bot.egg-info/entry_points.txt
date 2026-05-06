@@ -1,0 +1,2 @@
+[console_scripts]
+wood-sava-bot = wood_sava_bot.main:main
