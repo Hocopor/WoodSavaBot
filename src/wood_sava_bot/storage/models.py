@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -24,7 +24,7 @@ class UserSessionModel(Base):
     username: Mapped[str | None] = mapped_column(String(255))
     display_name: Mapped[str | None] = mapped_column(String(255))
     is_started: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    telegram_topic_id: Mapped[int | None] = mapped_column(Integer)
+    telegram_topic_id: Mapped[int | None] = mapped_column(BigInteger)
     current_flow: Mapped[str | None] = mapped_column(String(64))
     current_step: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     flow_status: Mapped[str | None] = mapped_column(String(32))
@@ -45,7 +45,7 @@ class AdminGroupModel(Base):
     __tablename__ = "admin_groups"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chat_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     title: Mapped[str | None] = mapped_column(String(255))
     chat_type: Mapped[str] = mapped_column(String(32), nullable=False)
     forum_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
