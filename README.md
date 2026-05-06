@@ -163,6 +163,50 @@ DATABASE_URL=sqlite+aiosqlite:///./wood_sava_bot.db
 DATABASE_URL=postgresql+asyncpg://wood_sava_user:strong_password@127.0.0.1:5432/wood_sava_bot
 ```
 
+Важно: если вы выбрали `PostgreSQL`, на сервере должен быть не только установлен пакет `asyncpg` в `.venv`, но и запущен сам сервер `PostgreSQL` на `127.0.0.1:5432`.
+
+Если в логах видно такое:
+
+```text
+ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+```
+
+это значит, что приложение не может подключиться к `PostgreSQL`, потому что:
+
+- `PostgreSQL` не установлен
+- `PostgreSQL` не запущен
+- база/пользователь ещё не созданы
+
+Минимальный копипаст для установки `PostgreSQL`:
+
+```bash
+apt update
+apt install -y postgresql postgresql-contrib
+systemctl enable postgresql
+systemctl start postgresql
+systemctl status postgresql
+```
+
+Создать пользователя и базу:
+
+```bash
+sudo -u postgres psql <<'EOF'
+CREATE USER wood_sava_user WITH PASSWORD 'strong_password';
+CREATE DATABASE wood_sava_bot OWNER wood_sava_user;
+GRANT ALL PRIVILEGES ON DATABASE wood_sava_bot TO wood_sava_user;
+EOF
+```
+
+Потом перезапустить бота:
+
+```bash
+systemctl restart wood-sava-bot
+systemctl status wood-sava-bot
+journalctl -u wood-sava-bot -f
+```
+
+Если хотите сначала просто запустить бота без возни с `PostgreSQL`, используйте `SQLite`.
+
 ### 6. Установить systemd unit
 
 В репозитории уже есть шаблон:
@@ -198,6 +242,35 @@ sudo cp deploy/systemd/wood-sava-bot.service /etc/systemd/system/wood-sava-bot.s
 sudo systemctl daemon-reload
 sudo systemctl enable wood-sava-bot
 sudo systemctl start wood-sava-bot
+```
+
+Если у вас путь проекта именно `/root/WoodSavaBot`, вот готовый копипаст-блок целиком:
+
+```bash
+cat > /etc/systemd/system/wood-sava-bot.service <<'EOF'
+[Unit]
+Description=Wood_Sava_Bot service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/WoodSavaBot
+EnvironmentFile=/root/WoodSavaBot/.env
+ExecStart=/root/WoodSavaBot/.venv/bin/python -m wood_sava_bot.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable wood-sava-bot
+systemctl start wood-sava-bot
+systemctl status wood-sava-bot
+journalctl -u wood-sava-bot -f
 ```
 
 ### 7. Проверить статус и логи
