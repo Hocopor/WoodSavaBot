@@ -106,11 +106,20 @@ class Application:
         max_adapter = self._adapters[Platform.MAX]
 
         async with asyncio.TaskGroup() as group:
-            group.create_task(telegram_adapter.poll_forever())
-            group.create_task(vk_adapter.poll_forever())
-            group.create_task(max_adapter.poll_forever())
+            group.create_task(self._run_adapter("telegram", telegram_adapter.poll_forever))
+            group.create_task(self._run_adapter("vk", vk_adapter.poll_forever))
+            group.create_task(self._run_adapter("max", max_adapter.poll_forever))
 
     async def shutdown(self) -> None:
         for adapter in self._adapters.values():
             await adapter.shutdown()
         await self._engine.dispose()
+
+    async def _run_adapter(self, name: str, runner) -> None:
+        try:
+            await runner()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("Adapter %s crashed unexpectedly", name)
+            raise

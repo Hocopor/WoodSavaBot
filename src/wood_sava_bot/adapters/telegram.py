@@ -266,9 +266,10 @@ class TelegramCustomerAdapter:
         await self._api.set_my_short_description(self._settings.telegram_short_description)
 
     async def poll_forever(self) -> None:
-        await self.bootstrap()
         while self._running:
             try:
+                if self._bot_user_id is None:
+                    await self.bootstrap()
                 updates = await self._api.get_updates(self._offset, timeout=30)
                 for update in updates:
                     self._offset = update["update_id"] + 1
