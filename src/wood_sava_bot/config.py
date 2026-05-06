@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field, PositiveInt
+from pydantic import Field, PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,6 +52,17 @@ class Settings(BaseSettings):
         default=2,
         alias="POLLING_SLEEP_SECONDS",
     )
+
+    @field_validator(
+        "telegram_admin_chat_id",
+        "vk_group_id",
+        mode="before",
+    )
+    @classmethod
+    def empty_string_to_none(cls, value):
+        if value == "":
+            return None
+        return value
 
     @property
     def vk_enabled(self) -> bool:
