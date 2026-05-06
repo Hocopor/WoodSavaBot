@@ -44,7 +44,7 @@ class TelegramBotAPI:
     ) -> list[dict[str, Any]]:
         payload: dict[str, Any] = {
             "timeout": timeout,
-            "allowed_updates": ["message"],
+            "allowed_updates": ["message", "my_chat_member"],
         }
         if offset is not None:
             payload["offset"] = offset
@@ -161,15 +161,16 @@ def _remove_keyboard() -> dict[str, Any]:
 
 
 class TelegramAdminHub:
-    def __init__(self, api: TelegramBotAPI, admin_chat_id: int) -> None:
+    def __init__(self, api: TelegramBotAPI, admin_chat_resolver) -> None:
         self._api = api
-        self._admin_chat_id = admin_chat_id
+        self._admin_chat_resolver = admin_chat_resolver
 
     async def ensure_topic(self, session: SessionSnapshot) -> int:
         if session.telegram_topic_id is not None:
             return session.telegram_topic_id
+        admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
         topic = await self._api.create_forum_topic(
-            self._admin_chat_id,
+            admin_chat_id,
             topic_title(session.platform, session.display_name, session.username),
         )
         return topic["message_thread_id"]
@@ -182,17 +183,18 @@ class TelegramAdminHub:
     ) -> None:
         if session.telegram_topic_id is None:
             raise RuntimeError("Telegram topic is not linked to session")
+        admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
 
         if question:
             answer = summarize_answer(message)
             await self._api.send_message(
-                self._admin_chat_id,
+                admin_chat_id,
                 f"{question}: {answer}",
                 message_thread_id=session.telegram_topic_id,
             )
         elif message.text:
             await self._api.send_message(
-                self._admin_chat_id,
+                admin_chat_id,
                 message.text,
                 message_thread_id=session.telegram_topic_id,
             )
@@ -201,16 +203,18 @@ class TelegramAdminHub:
             await self._relay_attachment(session.telegram_topic_id, attachment)
 
     async def notify_topic(self, telegram_topic_id: int, text: str) -> None:
+        admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
         await self._api.send_message(
-            self._admin_chat_id,
+            admin_chat_id,
             text,
             message_thread_id=telegram_topic_id,
         )
 
     async def _relay_attachment(self, topic_id: int, attachment: Attachment) -> None:
         if attachment.source_chat_id and attachment.source_message_id and attachment.source_file_id:
+            admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
             await self._api.copy_message(
-                self._admin_chat_id,
+                admin_chat_id,
                 attachment.source_chat_id,
                 attachment.source_message_id,
                 message_thread_id=topic_id,
@@ -218,15 +222,17 @@ class TelegramAdminHub:
             return
         if attachment.url:
             if attachment.kind is AttachmentKind.IMAGE:
+                admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
                 await self._api.send_photo(
-                    self._admin_chat_id,
+                    admin_chat_id,
                     attachment.url,
                     caption=attachment.name,
                     message_thread_id=topic_id,
                 )
             else:
+                admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
                 await self._api.send_document(
-                    self._admin_chat_id,
+                    admin_chat_id,
                     attachment.url,
                     caption=attachment.name,
                     message_thread_id=topic_id,
@@ -242,11 +248,13 @@ class TelegramCustomerAdapter:
         api: TelegramBotAPI,
         event_handler,
         admin_message_handler,
+        group_event_handler,
     ) -> None:
         self._settings = settings
         self._api = api
         self._event_handler = event_handler
         self._admin_message_handler = admin_message_handler
+        self._group_event_handler = group_event_handler
         self._bot_user_id: int | None = None
         self._offset: int | None = None
         self._running = True
@@ -264,14 +272,18 @@ class TelegramCustomerAdapter:
                 updates = await self._api.get_updates(self._offset, timeout=30)
                 for update in updates:
                     self._offset = update["update_id"] + 1
+                    if my_chat_member := update.get("my_chat_member"):
+                        await self._group_event_handler(my_chat_member, from_membership=True)
+                        continue
                     message = update.get("message")
                     if not message:
                         continue
                     parsed = self._parse_message(message)
                     if parsed is None:
                         continue
-                    if parsed.chat_id == str(self._settings.telegram_admin_chat_id):
-                        await self._admin_message_handler(parsed)
+                    chat = message.get("chat") or {}
+                    if chat.get("type") in {"group", "supergroup"}:
+                        await self._group_event_handler(message, from_membership=False)
                     else:
                         await self._event_handler(parsed)
             except Exception:
@@ -393,4 +405,3 @@ def summarize_answer(message: InboundMessage) -> str:
         names = [attachment.name or attachment.kind.value for attachment in message.attachments]
         return ", ".join(names)
     return "пустой ответ"
-

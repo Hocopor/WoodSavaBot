@@ -64,3 +64,11 @@ class SessionSnapshot:
     current_flow: FlowId | None
     current_step: int
 
+
+@dataclass(slots=True)
+class AdminGroupSnapshot:
+    chat_id: int
+    title: str | None
+    chat_type: str
+    forum_enabled: bool
+    is_active: bool

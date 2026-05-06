@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from wood_sava_bot.domain.enums import FlowId, Platform
-from wood_sava_bot.domain.models import SessionSnapshot
-from wood_sava_bot.storage.models import Base, UserSessionModel
+from wood_sava_bot.domain.models import AdminGroupSnapshot, SessionSnapshot
+from wood_sava_bot.storage.models import AdminGroupModel, Base, UserSessionModel
 
 
 class SessionRepository:
@@ -186,3 +186,74 @@ class SessionRepository:
             current_step=record.current_step,
         )
 
+
+class AdminGroupRepository:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def register_group(
+        self,
+        chat_id: int,
+        title: str | None,
+        chat_type: str,
+        forum_enabled: bool,
+    ) -> AdminGroupSnapshot:
+        async with self._session_factory() as session:
+            record = await session.scalar(
+                select(AdminGroupModel).where(AdminGroupModel.chat_id == chat_id)
+            )
+            if record is None:
+                record = AdminGroupModel(
+                    chat_id=chat_id,
+                    title=title,
+                    chat_type=chat_type,
+                    forum_enabled=forum_enabled,
+                    is_active=True,
+                )
+                session.add(record)
+            else:
+                record.title = title
+                record.chat_type = chat_type
+                record.forum_enabled = forum_enabled
+                record.is_active = True
+            await session.commit()
+            await session.refresh(record)
+            return self._to_snapshot(record)
+
+    async def deactivate_group(self, chat_id: int) -> None:
+        async with self._session_factory() as session:
+            record = await session.scalar(
+                select(AdminGroupModel).where(AdminGroupModel.chat_id == chat_id)
+            )
+            if record is None:
+                return
+            record.is_active = False
+            await session.commit()
+
+    async def list_active_forum_supergroups(self) -> list[AdminGroupSnapshot]:
+        async with self._session_factory() as session:
+            records = (
+                await session.scalars(
+                    select(AdminGroupModel).where(
+                        AdminGroupModel.is_active.is_(True),
+                        AdminGroupModel.chat_type == "supergroup",
+                        AdminGroupModel.forum_enabled.is_(True),
+                    )
+                )
+            ).all()
+            return [self._to_snapshot(record) for record in records]
+
+    async def get_single_active_forum_supergroup(self) -> AdminGroupSnapshot | None:
+        groups = await self.list_active_forum_supergroups()
+        if len(groups) == 1:
+            return groups[0]
+        return None
+
+    def _to_snapshot(self, record: AdminGroupModel) -> AdminGroupSnapshot:
+        return AdminGroupSnapshot(
+            chat_id=record.chat_id,
+            title=record.title,
+            chat_type=record.chat_type,
+            forum_enabled=record.forum_enabled,
+            is_active=record.is_active,
+        )

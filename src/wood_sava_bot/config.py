@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./wood_sava_bot.db"
 
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
-    telegram_admin_chat_id: int = Field(alias="TELEGRAM_ADMIN_CHAT_ID")
+    telegram_admin_chat_id: int | None = Field(
+        default=None,
+        alias="TELEGRAM_ADMIN_CHAT_ID",
+    )
     telegram_start_description: str = Field(
         default=(
             "Здравствуйте! Чтобы начать работу с ботом, нажмите кнопку "
@@ -62,4 +65,3 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-
