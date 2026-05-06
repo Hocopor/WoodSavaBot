@@ -37,7 +37,7 @@
 1. Создайте виртуальное окружение и установите зависимости:
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 ```
@@ -50,7 +50,13 @@ cp .env.example .env
 
 3. Заполните `.env` реальными токенами и ID.
 
-4. Запустите бота:
+4. Запустите приложение:
+
+```bash
+python -m wood_sava_bot.main
+```
+
+Либо так:
 
 ```bash
 wood-sava-bot
@@ -240,6 +246,31 @@ sudo -u woodbot .venv/bin/pip install -e .
 sudo systemctl restart wood-sava-bot
 sudo journalctl -u wood-sava-bot -n 100 --no-pager
 ```
+
+## Ручной запуск на сервере
+
+Если хотите сначала проверить всё вручную, без `systemd`:
+
+```bash
+cd /srv/wood/WoodSavaBot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+cp .env.example .env
+nano .env
+python -m wood_sava_bot.main
+```
+
+Если всё установлено, можно короче:
+
+```bash
+cd /srv/wood/WoodSavaBot
+source .venv/bin/activate
+python -m wood_sava_bot.main
+```
+
+Если `TELEGRAM_ADMIN_CHAT_ID` не нужен, его можно не указывать в `.env` совсем.
 
 ## Что я бы рекомендовал перед первым боевым запуском
 
