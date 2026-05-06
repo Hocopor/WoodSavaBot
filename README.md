@@ -81,8 +81,7 @@ wood-sava-bot
 
 ### Рекомендуемая изоляция
 
-- отдельная папка, например `/opt/wood-sava-bot`
-- отдельный Linux-пользователь, например `woodbot`
+- отдельная папка, например `/srv/wood/WoodSavaBot`
 - отдельное виртуальное окружение `.venv`
 - отдельный `.env`
 - отдельный `systemd` unit
@@ -92,8 +91,8 @@ wood-sava-bot
 
 Если нужен простой старт без лишних зависимостей:
 
-- код положить в `/opt/wood-sava-bot`
-- запускать от пользователя `woodbot`
+- код положить в `/srv/wood/WoodSavaBot`
+- запускать как отдельный сервис
 - хранить состояние в `PostgreSQL` с отдельной БД `wood_sava_bot`
 
 Если `PostgreSQL` пока не хотите:
@@ -104,38 +103,31 @@ wood-sava-bot
 
 ## Пошаговый деплой на Ubuntu 24
 
-### 1. Создать отдельного пользователя
+### 1. Скопировать проект
 
 ```bash
-sudo adduser --system --group --home /opt/wood-sava-bot woodbot
+mkdir -p /srv/wood/WoodSavaBot
 ```
 
-### 2. Скопировать проект
+Дальше положите код проекта в `/srv/wood/WoodSavaBot`.
 
-```bash
-sudo mkdir -p /opt/wood-sava-bot
-sudo chown -R woodbot:woodbot /opt/wood-sava-bot
-```
-
-Дальше положите код проекта в `/opt/wood-sava-bot`.
-
-### 3. Установить зависимости Python
+### 2. Установить зависимости Python
 
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip
 ```
 
-### 4. Создать виртуальное окружение и установить проект
+### 3. Создать виртуальное окружение и установить проект
 
 ```bash
-cd /opt/wood-sava-bot
-sudo -u woodbot python3 -m venv .venv
-sudo -u woodbot .venv/bin/pip install --upgrade pip
-sudo -u woodbot .venv/bin/pip install -e .[dev]
+cd /srv/wood/WoodSavaBot
+python3 -m venv .venv
+./.venv/bin/pip install --upgrade pip
+./.venv/bin/pip install -e .[dev]
 ```
 
-### 5. Создать `.env`
+### 4. Создать `.env`
 
 ```bash
 cp .env.example .env
@@ -157,7 +149,7 @@ cp .env.example .env
 - для этого он должен находиться ровно в одной `Telegram` супергруппе с включёнными темами
 - если таких групп будет несколько, бот напишет ошибку и попросит удалить его из лишних групп или явно указать `TELEGRAM_ADMIN_CHAT_ID`
 
-### 6. Настроить БД
+### 5. Настроить БД
 
 Простой вариант с `SQLite`:
 
@@ -171,12 +163,12 @@ DATABASE_URL=sqlite+aiosqlite:///./wood_sava_bot.db
 DATABASE_URL=postgresql+asyncpg://wood_sava_user:strong_password@127.0.0.1:5432/wood_sava_bot
 ```
 
-### 7. Установить systemd unit
+### 6. Установить systemd unit
 
 В репозитории уже есть шаблон:
 [wood-sava-bot.service](A:\DevAI\Projects\WoodSavaBot\deploy\systemd\wood-sava-bot.service)
 
-Под сервер лучше поправить его так, чтобы он запускался от `woodbot`, а не от `www-data`.
+Под сервер лучше поправить его так, чтобы он запускался от `root`.
 
 Рекомендуемая версия:
 
@@ -188,11 +180,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=woodbot
-Group=woodbot
-WorkingDirectory=/opt/wood-sava-bot
-EnvironmentFile=/opt/wood-sava-bot/.env
-ExecStart=/opt/wood-sava-bot/.venv/bin/wood-sava-bot
+User=root
+WorkingDirectory=/srv/wood/WoodSavaBot
+EnvironmentFile=/srv/wood/WoodSavaBot/.env
+ExecStart=/srv/wood/WoodSavaBot/.venv/bin/python -m wood_sava_bot.main
 Restart=always
 RestartSec=5
 
@@ -209,7 +200,7 @@ sudo systemctl enable wood-sava-bot
 sudo systemctl start wood-sava-bot
 ```
 
-### 8. Проверить статус и логи
+### 7. Проверить статус и логи
 
 ```bash
 sudo systemctl status wood-sava-bot
@@ -220,7 +211,6 @@ sudo journalctl -u wood-sava-bot -f
 
 Если сделать как выше, бот не будет конфликтовать с сайтами, потому что у него будут:
 
-- свой пользователь
 - своя директория
 - своё виртуальное окружение
 - свой `systemd` сервис
@@ -230,7 +220,6 @@ sudo journalctl -u wood-sava-bot -f
 Конфликт возможен только если:
 
 - использовать ту же БД и те же таблицы без разделения
-- запускать под тем же пользователем и мешать правами
 - класть зависимости в общее Python-окружение
 
 Этого как раз и не нужно делать.
@@ -240,9 +229,9 @@ sudo journalctl -u wood-sava-bot -f
 После изменения кода:
 
 ```bash
-cd /opt/wood-sava-bot
-sudo -u woodbot git pull
-sudo -u woodbot .venv/bin/pip install -e .
+cd /srv/wood/WoodSavaBot
+git pull
+./.venv/bin/pip install -e .
 sudo systemctl restart wood-sava-bot
 sudo journalctl -u wood-sava-bot -n 100 --no-pager
 ```
