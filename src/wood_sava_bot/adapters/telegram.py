@@ -19,7 +19,7 @@ from wood_sava_bot.domain.flows import (
     start_buttons,
     topic_title,
 )
-from wood_sava_bot.domain.models import Attachment, InboundMessage, OutboundMessage, SessionSnapshot
+from wood_sava_bot.domain.models import Attachment, Button, InboundMessage, OutboundMessage, SessionSnapshot
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,11 +44,11 @@ class TelegramBotAPI:
     ) -> list[dict[str, Any]]:
         payload: dict[str, Any] = {
             "timeout": timeout,
-            "allowed_updates": ["message", "my_chat_member"],
+            "allowed_updates": ["message", "my_chat_member", "callback_query"],
         }
         if offset is not None:
             payload["offset"] = offset
-        response = await self._request("getUpdates", payload)
+        response = await self._request("getUpdates", payload, request_timeout=timeout + 10)
         return response
 
     async def send_message(
@@ -129,6 +129,9 @@ class TelegramBotAPI:
             {"short_description": short_description},
         )
 
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        await self._request("answerCallbackQuery", {"callback_query_id": callback_query_id})
+
     async def get_file(self, file_id: str) -> dict[str, Any]:
         return await self._request("getFile", {"file_id": file_id})
 
@@ -142,8 +145,18 @@ class TelegramBotAPI:
         response.raise_for_status()
         return response.content, file_path
 
-    async def _request(self, method: str, payload: dict[str, Any] | None = None) -> Any:
-        response = await self._client.post(f"{self._base_url}/{method}", json=payload or {})
+    async def _request(
+        self,
+        method: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        request_timeout: int | float | None = None,
+    ) -> Any:
+        response = await self._client.post(
+            f"{self._base_url}/{method}",
+            json=payload or {},
+            timeout=request_timeout,
+        )
         response.raise_for_status()
         body = response.json()
         if not body.get("ok", False):
@@ -156,6 +169,21 @@ def _reply_keyboard(button_rows: list[list[str]]) -> dict[str, Any]:
         "keyboard": [[{"text": label} for label in row] for row in button_rows],
         "resize_keyboard": True,
         "is_persistent": True,
+    }
+
+
+def _inline_keyboard(button_rows: list[list[Button]]) -> dict[str, Any]:
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": button.label,
+                    "callback_data": button.value or button.label,
+                }
+                for button in row
+            ]
+            for row in button_rows
+        ]
     }
 
 
@@ -279,6 +307,14 @@ class TelegramCustomerAdapter:
                     if my_chat_member := update.get("my_chat_member"):
                         await self._group_event_handler(my_chat_member, from_membership=True)
                         continue
+                    callback_query = update.get("callback_query")
+                    if callback_query:
+                        parsed = self._parse_callback_query(callback_query)
+                        if parsed is None:
+                            continue
+                        await self._api.answer_callback_query(callback_query["id"])
+                        await self._event_handler(parsed)
+                        continue
                     message = update.get("message")
                     if not message:
                         continue
@@ -290,6 +326,9 @@ class TelegramCustomerAdapter:
                         await self._group_event_handler(message, from_membership=False)
                     else:
                         await self._event_handler(parsed)
+            except httpx.ReadTimeout:
+                LOGGER.debug("Telegram long polling timed out, continuing")
+                await asyncio.sleep(0)
             except Exception:
                 LOGGER.exception("Telegram polling loop failed")
                 await asyncio.sleep(self._settings.polling_sleep_seconds)
@@ -311,9 +350,7 @@ class TelegramCustomerAdapter:
         if outbound.remove_keyboard:
             reply_markup = _remove_keyboard()
         elif outbound.buttons:
-            reply_markup = _reply_keyboard(
-                [[button.label for button in row] for row in outbound.buttons]
-            )
+            reply_markup = _inline_keyboard(outbound.buttons)
 
         if outbound.attachments:
             first = outbound.attachments[0]
@@ -343,7 +380,7 @@ class TelegramCustomerAdapter:
         await self._api.send_message(
             chat_id,
             "Здравствуйте! Нажмите кнопку «Старт», чтобы запустить бота.",
-            reply_markup=_reply_keyboard([[button.label for button in row] for row in start_buttons(Platform.TELEGRAM)]),
+            reply_markup=_inline_keyboard(start_buttons(Platform.TELEGRAM)),
         )
 
     async def shutdown(self) -> None:
@@ -396,6 +433,30 @@ class TelegramCustomerAdapter:
             is_home=normalized_text.lower() == BUTTON_HOME.lower(),
             selected_flow=flow,
             thread_id=payload.get("message_thread_id"),
+            raw_event=payload,
+        )
+
+    def _parse_callback_query(self, payload: dict[str, Any]) -> InboundMessage | None:
+        sender = payload.get("from") or {}
+        message = payload.get("message") or {}
+        chat = message.get("chat") or {}
+        data = payload.get("data")
+        flow = detect_flow_from_text(data)
+        return InboundMessage(
+            platform=Platform.TELEGRAM,
+            user_id=str(sender.get("id", chat.get("id"))),
+            chat_id=str(chat["id"]),
+            text=data,
+            username=sender.get("username"),
+            display_name=sender.get("first_name") or sender.get("last_name"),
+            message_id=message.get("message_id"),
+            attachments=[],
+            is_start=(data or "").strip() == "/start" or (data or "").strip().lower() == BUTTON_START.lower(),
+            is_cancel=(data or "").strip().lower() == BUTTON_CANCEL.lower(),
+            is_home=(data or "").strip().lower() == BUTTON_HOME.lower(),
+            selected_flow=flow,
+            thread_id=message.get("message_thread_id"),
+            callback_query_id=payload.get("id"),
             raw_event=payload,
         )
 

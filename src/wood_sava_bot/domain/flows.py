@@ -117,4 +117,3 @@ def topic_title(platform: Platform, display_name: str | None, username: str | No
     else:
         user_part = username or "без_ника"
     return f"{prefix},{name},{user_part}"
-

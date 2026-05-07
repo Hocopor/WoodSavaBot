@@ -49,6 +49,7 @@ class InboundMessage:
     is_home: bool = False
     selected_flow: FlowId | None = None
     thread_id: int | None = None
+    callback_query_id: str | None = None
     raw_event: dict[str, Any] | None = None
 
 
