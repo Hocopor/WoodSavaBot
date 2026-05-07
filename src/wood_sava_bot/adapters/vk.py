@@ -24,6 +24,7 @@ class VKCustomerAdapter:
         self._telegram_api = telegram_api
         self._client = httpx.AsyncClient(timeout=settings.http_timeout_seconds)
         self._running = True
+        self._user_cache: dict[str, tuple[str | None, str | None]] = {}
 
     async def poll_forever(self) -> None:
         if not self._settings.vk_enabled:
@@ -49,7 +50,7 @@ class VKCustomerAdapter:
                         break
                     ts = body["ts"]
                     for update in body.get("updates", []):
-                        parsed = self._parse_update(update)
+                        parsed = await self._parse_update(update)
                         if parsed:
                             await self._event_handler(parsed)
             except Exception:
@@ -113,19 +114,21 @@ class VKCustomerAdapter:
             raise RuntimeError(f"VK API error for {method}: {body['error']}")
         return body["response"]
 
-    def _parse_update(self, update: dict[str, Any]) -> InboundMessage | None:
+    async def _parse_update(self, update: dict[str, Any]) -> InboundMessage | None:
         if update.get("type") != "message_new":
             return None
         message = update["object"]["message"]
         text = (message.get("text") or "").strip()
         attachments = _parse_vk_attachments(message.get("attachments", []))
+        user_id = str(message["from_id"])
+        display_name, username = await self._get_user_identity(user_id)
         return InboundMessage(
             platform=Platform.VK,
-            user_id=str(message["from_id"]),
-            chat_id=str(message["from_id"]),
+            user_id=user_id,
+            chat_id=user_id,
             text=message.get("text"),
-            display_name=None,
-            username=None,
+            display_name=display_name,
+            username=username,
             message_id=message.get("id"),
             attachments=attachments,
             is_start=text.lower() == BUTTON_START.lower(),
@@ -134,6 +137,36 @@ class VKCustomerAdapter:
             selected_flow=detect_flow_from_text(text),
             raw_event=update,
         )
+
+    async def _get_user_identity(self, user_id: str) -> tuple[str | None, str | None]:
+        cached = self._user_cache.get(user_id)
+        if cached is not None:
+            return cached
+
+        try:
+            users = await self._api(
+                "users.get",
+                {
+                    "user_ids": user_id,
+                    "fields": "screen_name",
+                },
+            )
+        except Exception:
+            LOGGER.exception("Failed to load VK user profile for %s", user_id)
+            return None, None
+
+        if not users:
+            return None, None
+
+        user = users[0]
+        first_name = user.get("first_name")
+        last_name = user.get("last_name")
+        display_name = " ".join(part for part in [first_name, last_name] if part) or None
+        screen_name = user.get("screen_name")
+        username = f"vk.com/{screen_name}" if screen_name else f"vk.com/id{user_id}"
+        result = (display_name, username)
+        self._user_cache[user_id] = result
+        return result
 
     async def _upload_attachment(self, attachment: Attachment, session: SessionSnapshot) -> str | None:
         data, filename, mime_type = await self._materialize_attachment(attachment)
