@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "development"
-    log_level: str = "INFO"
+    log_level: str = "ERROR"
     database_url: str = "sqlite+aiosqlite:///./wood_sava_bot.db"
 
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")

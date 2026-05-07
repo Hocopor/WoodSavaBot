@@ -9,7 +9,7 @@
 - [x] Choose implementation stack and dependency set for `Ubuntu 24`
 - [x] Create base project structure for adapters, domain, storage, config, and tests
 - [x] Add environment configuration template for all platform tokens and IDs
-- [~] Add structured logging, startup validation, and health-oriented bootstrap checks
+- [x] Add structured logging, startup validation, and health-oriented bootstrap checks
 
 ## Phase 2 - Persistent State And Domain Core
 - [x] Design the runtime persistence model for `UserSession` and routing metadata
@@ -96,5 +96,6 @@
 - The branch-selection notice is now emitted before the first question and covered by automated tests.
 - Telegram topic self-healing now also treats "accepted but delivered outside the requested topic" as a broken-topic condition.
 - Backtracking UX requires persistent per-step answer state plus admin-message IDs so replaced answers can be deleted from Telegram topics after edits.
+- Default runtime logging is now intentionally reduced to `ERROR`, including `httpx` and `httpcore`, to keep production journals focused on failures.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.
