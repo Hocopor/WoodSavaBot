@@ -79,6 +79,7 @@
 ## Next Steps
 - [x] Update `AGENTS.md` so all future implementation follows the approved specification and this live plan
 - [~] Deepen reliability, adapter verification, operator-visible context, and production hardening on top of the implemented core
+- [x] Notify Telegram managers which menu branch the customer selected before the first flow question
 
 ## Durable Notes
 - The source of truth for requirements is [2026-05-07-wood-sava-bot.md](A:\DevAI\Projects\WoodSavaBot\thoughts\shared\specs\2026-05-07-wood-sava-bot.md).
@@ -88,5 +89,6 @@
 - The admin workspace is a single `Telegram` supergroup with forum topics.
 - Any manager message in a customer topic is treated as a reply to that customer.
 - When a customer chooses flow `1`, `2`, or `3`, the admin topic should receive an explicit notice about that selection so managers can immediately see the chosen branch.
+- The branch-selection notice is now emitted before the first question and covered by automated tests.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.
