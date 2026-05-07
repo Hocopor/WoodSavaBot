@@ -41,6 +41,15 @@ class TelegramAPIError(RuntimeError):
         return int(code) if isinstance(code, int) else None
 
 
+class TelegramTopicDeliveryError(RuntimeError):
+    def __init__(self, expected_topic_id: int, actual_topic_id: int | None) -> None:
+        self.expected_topic_id = expected_topic_id
+        self.actual_topic_id = actual_topic_id
+        super().__init__(
+            f"Telegram delivered message to unexpected topic: expected {expected_topic_id}, got {actual_topic_id}"
+        )
+
+
 class TelegramBotAPI:
     def __init__(self, token: str, timeout_seconds: int) -> None:
         self._token = token
@@ -237,23 +246,27 @@ class TelegramAdminHub:
 
         if question:
             answer = summarize_answer(message)
-            await self._api.send_message(
+            result = await self._api.send_message(
                 admin_chat_id,
                 f"{question}: {answer}",
                 message_thread_id=session.telegram_topic_id,
             )
+            self._assert_sent_to_topic(result, session.telegram_topic_id)
         elif message.text:
-            await self._api.send_message(
+            result = await self._api.send_message(
                 admin_chat_id,
                 message.text,
                 message_thread_id=session.telegram_topic_id,
             )
+            self._assert_sent_to_topic(result, session.telegram_topic_id)
 
         for attachment in message.attachments:
             await self._relay_attachment(session.telegram_topic_id, attachment)
 
     @staticmethod
     def is_missing_topic_error(exc: Exception) -> bool:
+        if isinstance(exc, TelegramTopicDeliveryError):
+            return True
         if not isinstance(exc, TelegramAPIError):
             return False
         description = exc.description.lower()
@@ -268,11 +281,12 @@ class TelegramAdminHub:
 
     async def notify_topic(self, telegram_topic_id: int, text: str) -> None:
         admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
-        await self._api.send_message(
+        result = await self._api.send_message(
             admin_chat_id,
             text,
             message_thread_id=telegram_topic_id,
         )
+        self._assert_sent_to_topic(result, telegram_topic_id)
 
     async def _relay_attachment(self, topic_id: int, attachment: Attachment) -> None:
         if attachment.source_chat_id and attachment.source_message_id and attachment.source_file_id:
@@ -303,6 +317,13 @@ class TelegramAdminHub:
                 )
             return
         await self.notify_topic(topic_id, "Не удалось переслать вложение в Telegram-тему.")
+
+
+    @staticmethod
+    def _assert_sent_to_topic(result: dict[str, Any], expected_topic_id: int) -> None:
+        actual_topic_id = result.get("message_thread_id")
+        if actual_topic_id != expected_topic_id:
+            raise TelegramTopicDeliveryError(expected_topic_id, actual_topic_id)
 
 
 class TelegramCustomerAdapter:

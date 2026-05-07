@@ -90,5 +90,6 @@
 - Any manager message in a customer topic is treated as a reply to that customer.
 - When a customer chooses flow `1`, `2`, or `3`, the admin topic should receive an explicit notice about that selection so managers can immediately see the chosen branch.
 - The branch-selection notice is now emitted before the first question and covered by automated tests.
+- Telegram topic self-healing now also treats "accepted but delivered outside the requested topic" as a broken-topic condition.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.
