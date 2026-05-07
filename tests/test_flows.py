@@ -24,9 +24,9 @@ def test_detect_flow_from_text() -> None:
 
 
 def test_flow_lengths_are_expected() -> None:
-    assert len(FLOW_DEFINITIONS[FlowId.READY_MADE].questions) == 7
-    assert len(FLOW_DEFINITIONS[FlowId.DESIGNER_PROJECT].questions) == 6
-    assert len(FLOW_DEFINITIONS[FlowId.CUSTOM_DIMENSIONS].questions) == 1
+    assert len(FLOW_DEFINITIONS[FlowId.READY_MADE].questions) == 4
+    assert len(FLOW_DEFINITIONS[FlowId.DESIGNER_PROJECT].questions) == 2
+    assert len(FLOW_DEFINITIONS[FlowId.CUSTOM_DIMENSIONS].questions) == 2
 
 
 def test_topic_title_uses_platform_prefix() -> None:

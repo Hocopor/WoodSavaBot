@@ -34,6 +34,9 @@
 
 - [x] Add persistent `Back` / `Next` questionnaire navigation with answer previews and admin-topic cleanup for replaced answers
 - [x] Reduce Telegram customer-chat visual noise by replacing repeated welcome messages with a single rotating `На главную` action message during operator dialogue
+- [x] Refine questionnaire copy to match the current sales script, including dimension/material/fittings wording and the unified contact prompt
+- [x] Swap the actual flow behavior behind buttons `1` and `3` while keeping the visible button titles unchanged
+- [x] Re-align all three button scenarios to the latest sales-script questionnaire with shorter branch `2` and reduced branch `3`
 
 ## Phase 5 - VK Adapter
 - [x] Implement `VK` long poll intake
@@ -100,5 +103,8 @@
 - Default runtime logging is now intentionally reduced to `ERROR`, including `httpx` and `httpcore`, to keep production journals focused on failures.
 - During free-form customer-to-operator dialogue in Telegram, repeated welcome messages should be avoided; instead the bot should keep at most one active `На главную` helper message and refresh it as new customer messages arrive.
 - Telegram free-form dialogue now uses a rotating inline `На главную` helper instead of re-sending the full welcome text after every arbitrary customer message.
+- Questionnaire wording should stay aligned with the active sales script: explicit dimensions format, explicit facade material options, no separate color/decor step, simplified fittings tiering, and one shared contact prompt across all flows.
+- Buttons `1` and `3` now require special care: the user may want their visible labels preserved while the underlying questionnaire scenarios are swapped.
+- The latest approved questionnaire is now even simpler: branch `1` is a short custom-order qualification flow, branch `2` is just project handoff plus contacts, and branch `3` is article/photo plus contacts.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.
