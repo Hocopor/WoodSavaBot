@@ -105,6 +105,15 @@ def home_buttons() -> list[list[Button]]:
     return [[Button(BUTTON_HOME)]]
 
 
+def flow_selection_text(flow_id: FlowId) -> str:
+    mapping = {
+        FlowId.READY_MADE: "Пользователь выбрал: 1️⃣ - Вы хотите рассчитать стоимость готового изделия",
+        FlowId.DESIGNER_PROJECT: "Пользователь выбрал: 2️⃣ - У Вас готовый проект от дизайнера",
+        FlowId.CUSTOM_DIMENSIONS: "Пользователь выбрал: 3️⃣ - Сделать мебель по индивидуальным размерам",
+    }
+    return mapping[flow_id]
+
+
 def topic_title(platform: Platform, display_name: str | None, username: str | None) -> str:
     prefix = {
         Platform.TELEGRAM: "ТГ",

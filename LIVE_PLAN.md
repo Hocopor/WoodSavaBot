@@ -23,7 +23,7 @@
 - [x] Implement forum-topic creation and topic reuse
 - [x] Implement inbound forwarding into customer topics
 - [x] Implement manager-to-customer routing from topic messages
-- [~] Implement service notices for unsupported content and delivery failures
+- [~] Implement service notices for unsupported content, delivery failures, and operator-facing flow context
 
 ## Phase 4 - Telegram Customer Bot
 - [x] Implement `Telegram` polling intake
@@ -53,7 +53,7 @@
 - [] Verify that no restart loses `user -> topic -> step` binding
 
 ## Phase 8 - Testing
-- [~] Add unit tests for flow engine and persistent state transitions
+- [~] Add unit tests for flow engine, persistent state transitions, and operator-facing flow notices
 - [] Add adapter-level tests for topic routing and delivery mapping
 - [] Add integration checks for `Telegram`, `VK`, and `MAX` critical paths
 - [] Add restart/recovery test coverage for durable routing state
@@ -78,7 +78,7 @@
 
 ## Next Steps
 - [x] Update `AGENTS.md` so all future implementation follows the approved specification and this live plan
-- [~] Deepen reliability, adapter verification, and production hardening on top of the implemented core
+- [~] Deepen reliability, adapter verification, operator-visible context, and production hardening on top of the implemented core
 
 ## Durable Notes
 - The source of truth for requirements is [2026-05-07-wood-sava-bot.md](A:\DevAI\Projects\WoodSavaBot\thoughts\shared\specs\2026-05-07-wood-sava-bot.md).
@@ -87,5 +87,6 @@
 - The mandatory durable binding is `user -> source platform -> Telegram topic -> current flow step`.
 - The admin workspace is a single `Telegram` supergroup with forum topics.
 - Any manager message in a customer topic is treated as a reply to that customer.
+- When a customer chooses flow `1`, `2`, or `3`, the admin topic should receive an explicit notice about that selection so managers can immediately see the chosen branch.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.

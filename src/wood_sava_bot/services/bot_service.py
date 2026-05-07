@@ -12,6 +12,7 @@ from wood_sava_bot.domain.flows import (
     THANK_YOU_TEXT,
     WELCOME_TEXT,
     cancel_buttons,
+    flow_selection_text,
     home_buttons,
     main_menu_buttons,
 )
@@ -67,6 +68,11 @@ class BotService:
                 if session.telegram_topic_id:
                     await self._relay_customer_message(session, message, question=None)
                 return
+            session = await self._ensure_topic(session)
+            await self._admin_hub.notify_topic(
+                session.telegram_topic_id,
+                flow_selection_text(flow),
+            )
             session = await self._repository.start_flow(message.platform, message.user_id, flow)
             await self._send_current_question(session)
             return
