@@ -33,6 +33,7 @@
 - [x] Implement customer attachment intake and forwarding
 
 - [x] Add persistent `Back` / `Next` questionnaire navigation with answer previews and admin-topic cleanup for replaced answers
+- [x] Reduce Telegram customer-chat visual noise by replacing repeated welcome messages with a single rotating `На главную` action message during operator dialogue
 
 ## Phase 5 - VK Adapter
 - [x] Implement `VK` long poll intake
@@ -97,5 +98,7 @@
 - Telegram topic self-healing now also treats "accepted but delivered outside the requested topic" as a broken-topic condition.
 - Backtracking UX requires persistent per-step answer state plus admin-message IDs so replaced answers can be deleted from Telegram topics after edits.
 - Default runtime logging is now intentionally reduced to `ERROR`, including `httpx` and `httpcore`, to keep production journals focused on failures.
+- During free-form customer-to-operator dialogue in Telegram, repeated welcome messages should be avoided; instead the bot should keep at most one active `На главную` helper message and refresh it as new customer messages arrive.
+- Telegram free-form dialogue now uses a rotating inline `На главную` helper instead of re-sending the full welcome text after every arbitrary customer message.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.

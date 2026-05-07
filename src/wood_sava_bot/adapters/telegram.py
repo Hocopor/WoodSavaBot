@@ -458,6 +458,25 @@ class TelegramCustomerAdapter:
                 reply_markup=reply_markup,
             )
 
+    async def send_home_hint(
+        self,
+        session: SessionSnapshot,
+        outbound: OutboundMessage,
+    ) -> int:
+        reply_markup = _inline_keyboard(outbound.buttons) if outbound.buttons else None
+        result = await self._api.send_message(
+            session.platform_chat_id,
+            outbound.text or "",
+            reply_markup=reply_markup,
+        )
+        return int(result["message_id"])
+
+    async def delete_message_for_session(self, session: SessionSnapshot, message_id: int) -> None:
+        try:
+            await self._api.delete_message(session.platform_chat_id, message_id)
+        except TelegramAPIError:
+            LOGGER.debug("Telegram customer message %s is already missing", message_id)
+
     async def prompt_start(self, chat_id: str) -> None:
         await self._api.send_message(
             chat_id,

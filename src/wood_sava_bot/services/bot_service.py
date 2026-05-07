@@ -24,6 +24,7 @@ from wood_sava_bot.domain.models import InboundMessage, OutboundMessage, Session
 from wood_sava_bot.storage.repositories import SessionRepository
 
 LOGGER = logging.getLogger(__name__)
+HOME_HINT_TEXT = "Чтобы вернуться в главное меню, нажмите кнопку ниже."
 
 
 class BotService:
@@ -36,6 +37,7 @@ class BotService:
         self._repository = repository
         self._admin_hub = admin_hub
         self._adapters = adapters
+        self._home_hint_message_ids: dict[tuple[Platform, str], int] = {}
 
     async def handle_customer_message(self, message: InboundMessage) -> None:
         session = await self._repository.upsert_user(
@@ -53,11 +55,16 @@ class BotService:
         if message.is_start:
             session = await self._repository.mark_started(message.platform, message.user_id)
             session = await self._ensure_topic(session)
+            await self._clear_home_hint(session)
             await self._send_welcome(session)
             return
 
         if message.is_cancel or message.is_home:
             session = await self._repository.reset_flow(message.platform, message.user_id)
+            await self._clear_home_hint(
+                session,
+                current_message_id=message.message_id if message.is_home else None,
+            )
             await self._send_welcome(session)
             return
 
@@ -102,10 +109,11 @@ class BotService:
         if session.current_flow is None:
             flow = message.selected_flow
             if flow is None:
-                await self._send_welcome(session)
+                session = await self._send_home_hint(session)
                 if session.telegram_topic_id:
                     await self._relay_customer_message(session, message, question=None)
                 return
+            await self._clear_home_hint(session)
             session = await self._ensure_topic(session)
             session = await self._notify_topic(session, flow_selection_text(flow))
             session = await self._repository.start_flow(message.platform, message.user_id, flow)
@@ -214,6 +222,52 @@ class BotService:
             session,
             OutboundMessage(text=WELCOME_TEXT, buttons=main_menu_buttons()),
         )
+
+    async def _send_home_hint(self, session: SessionSnapshot) -> SessionSnapshot:
+        if session.platform is not Platform.TELEGRAM:
+            await self._send_welcome(session)
+            return session
+
+        await self._clear_home_hint(session)
+        adapter = self._adapters[session.platform]
+        if not hasattr(adapter, "send_home_hint"):
+            await self._send_welcome(session)
+            return session
+
+        message_id = await adapter.send_home_hint(
+            session,
+            OutboundMessage(text=HOME_HINT_TEXT, buttons=home_buttons()),
+        )
+        if isinstance(message_id, int):
+            self._home_hint_message_ids[self._home_hint_key(session)] = message_id
+        return session
+
+    async def _clear_home_hint(
+        self,
+        session: SessionSnapshot,
+        *,
+        current_message_id: int | str | None = None,
+    ) -> None:
+        if session.platform is not Platform.TELEGRAM:
+            return
+
+        adapter = self._adapters[session.platform]
+        if not hasattr(adapter, "delete_message_for_session"):
+            return
+
+        ids_to_delete: list[int] = []
+        stored_message_id = self._home_hint_message_ids.pop(self._home_hint_key(session), None)
+        if isinstance(stored_message_id, int):
+            ids_to_delete.append(stored_message_id)
+        if isinstance(current_message_id, int) and current_message_id not in ids_to_delete:
+            ids_to_delete.append(current_message_id)
+
+        for message_id in ids_to_delete:
+            await adapter.delete_message_for_session(session, message_id)
+
+    @staticmethod
+    def _home_hint_key(session: SessionSnapshot) -> tuple[Platform, str]:
+        return (session.platform, session.platform_user_id)
 
     async def _send_current_question(self, session: SessionSnapshot) -> None:
         if session.current_flow is None:
