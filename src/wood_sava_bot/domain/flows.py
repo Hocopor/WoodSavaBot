@@ -125,7 +125,10 @@ def question_buttons(
 
 
 def format_question_text(question: str, previous_answer: str | None = None) -> str:
-    text = f"Введите:\n{question}"
+    if question in {CONTACT_PROMPT, CONTACT_PROMPT_PLAIN}:
+        text = question
+    else:
+        text = f"Введите:\n{question}"
     if previous_answer:
         text += (
             f"\n\nВаш ответ:\n{previous_answer}"

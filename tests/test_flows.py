@@ -5,6 +5,7 @@ from wood_sava_bot.domain.flows import (
     BUTTON_HOME,
     BUTTON_NEXT,
     BUTTON_START,
+    CONTACT_PROMPT,
     FLOW_DEFINITIONS,
     WELCOME_TEXT,
     detect_flow_from_text,
@@ -69,3 +70,9 @@ def test_format_question_text_includes_previous_answer_hint() -> None:
     assert "Введите:" in text
     assert "Ваш ответ:" in text
     assert "Белый" in text
+
+
+def test_format_question_text_skips_enter_prefix_for_contact_prompt() -> None:
+    text = format_question_text(CONTACT_PROMPT)
+    assert not text.startswith("Введите:")
+    assert text == CONTACT_PROMPT
