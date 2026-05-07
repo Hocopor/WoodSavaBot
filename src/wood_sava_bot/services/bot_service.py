@@ -69,7 +69,7 @@ class BotService:
                     await self._relay_customer_message(session, message, question=None)
                 return
             session = await self._ensure_topic(session)
-            await self._notify_topic(session, flow_selection_text(flow))
+            session = await self._notify_topic(session, flow_selection_text(flow))
             session = await self._repository.start_flow(message.platform, message.user_id, flow)
             await self._send_current_question(session)
             return
@@ -148,11 +148,12 @@ class BotService:
             session = await self._ensure_topic(session)
             await self._admin_hub.relay_user_message(session, message, question)
 
-    async def _notify_topic(self, session: SessionSnapshot, text: str) -> None:
+    async def _notify_topic(self, session: SessionSnapshot, text: str) -> SessionSnapshot:
         if session.telegram_topic_id is None:
             raise RuntimeError("Telegram topic is not linked to session")
         try:
             await self._admin_hub.notify_topic(session.telegram_topic_id, text)
+            return session
         except Exception as exc:
             if not self._admin_hub.is_missing_topic_error(exc):
                 raise
@@ -168,6 +169,7 @@ class BotService:
             )
             session = await self._ensure_topic(session)
             await self._admin_hub.notify_topic(session.telegram_topic_id, text)
+            return session
 
     async def _send_welcome(self, session: SessionSnapshot) -> None:
         await self._adapters[session.platform].send_outbound(
