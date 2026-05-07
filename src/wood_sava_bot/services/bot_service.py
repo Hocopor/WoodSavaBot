@@ -244,16 +244,12 @@ class BotService:
         message: InboundMessage,
         question: str,
     ) -> None:
-        obsolete_states = await self._repository.clear_step_states_from(
+        obsolete_state = await self._repository.clear_step_state(
             session.platform,
             session.platform_user_id,
             session.current_step,
         )
-        obsolete_message_ids = [
-            message_id
-            for state in obsolete_states
-            for message_id in state.admin_message_ids
-        ]
+        obsolete_message_ids = obsolete_state.admin_message_ids if obsolete_state else []
         if obsolete_message_ids:
             await self._admin_hub.delete_topic_messages(obsolete_message_ids)
 

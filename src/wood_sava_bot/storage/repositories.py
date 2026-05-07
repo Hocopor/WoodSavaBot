@@ -268,6 +268,27 @@ class SessionRepository:
             await session.commit()
             return snapshots
 
+    async def clear_step_state(
+        self,
+        platform: Platform,
+        platform_user_id: str,
+        step_index: int,
+    ) -> FlowStepStateSnapshot | None:
+        async with self._session_factory() as session:
+            session_record = await self._require_session_record(session, platform, platform_user_id)
+            record = await session.scalar(
+                select(FlowStepStateModel).where(
+                    FlowStepStateModel.session_id == session_record.id,
+                    FlowStepStateModel.step_index == step_index,
+                )
+            )
+            if record is None:
+                return None
+            snapshot = self._to_step_snapshot(record)
+            await session.delete(record)
+            await session.commit()
+            return snapshot
+
     async def list_step_states(
         self,
         platform: Platform,
