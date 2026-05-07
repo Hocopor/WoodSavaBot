@@ -6,6 +6,7 @@ from wood_sava_bot.domain.flows import (
     BUTTON_NEXT,
     BUTTON_START,
     CONTACT_PROMPT,
+    DESIGN_PROJECT_UPLOAD_PROMPT,
     FLOW_DEFINITIONS,
     WELCOME_TEXT,
     detect_flow_from_text,

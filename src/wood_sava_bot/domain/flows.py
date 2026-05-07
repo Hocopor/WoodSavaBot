@@ -26,6 +26,7 @@ CONTACT_PROMPT_PLAIN = (
     "Пожалуйста напишите имя, телефон для связи, и адрес доставки. "
     "С вами свяжется первый освободившийся менеджер."
 )
+DESIGN_PROJECT_UPLOAD_PROMPT = "Пришлите дизайн проект в мессенджер или на почту wood-sava@yandex.ru"
 
 BUTTON_START = "Старт"
 BUTTON_CANCEL = "Отмена"
@@ -56,7 +57,7 @@ FLOW_DEFINITIONS = {
         flow_id=FlowId.DESIGNER_PROJECT,
         entry_label="2️⃣",
         questions=[
-            "Пришлите дизайн проект в мессенджер или на почту wood-sava@yandex.ru",
+            DESIGN_PROJECT_UPLOAD_PROMPT,
             "Укажите контактные данные для связи и город обращения.",
         ],
     ),
@@ -122,7 +123,7 @@ def question_buttons(
 
 
 def format_question_text(question: str, previous_answer: str | None = None) -> str:
-    if question in {CONTACT_PROMPT, CONTACT_PROMPT_PLAIN}:
+    if question in {CONTACT_PROMPT, CONTACT_PROMPT_PLAIN, DESIGN_PROJECT_UPLOAD_PROMPT}:
         text = question
     else:
         text = f"Введите:\n{question}"
