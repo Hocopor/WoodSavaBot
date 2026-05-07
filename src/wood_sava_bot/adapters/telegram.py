@@ -174,8 +174,12 @@ class TelegramBotAPI:
             json=payload or {},
             timeout=request_timeout,
         )
-        response.raise_for_status()
-        body = response.json()
+        try:
+            body = response.json()
+        except ValueError:
+            response.raise_for_status()
+            raise
+
         if not body.get("ok", False):
             raise TelegramAPIError(method, body)
         return body["result"]
