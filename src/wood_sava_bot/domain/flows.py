@@ -29,6 +29,8 @@ CONTACT_PROMPT_PLAIN = (
 BUTTON_START = "Старт"
 BUTTON_CANCEL = "Отмена"
 BUTTON_HOME = "На главную"
+BUTTON_BACK = "Прошлый вопрос"
+BUTTON_NEXT = "Следующий вопрос"
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +105,33 @@ def cancel_buttons() -> list[list[Button]]:
 
 def home_buttons() -> list[list[Button]]:
     return [[Button(BUTTON_HOME)]]
+
+
+def question_buttons(
+    *,
+    can_go_back: bool,
+    can_go_next: bool,
+) -> list[list[Button]]:
+    if not can_go_back and not can_go_next:
+        return [[Button(BUTTON_CANCEL)]]
+
+    navigation_row: list[Button] = []
+    if can_go_back:
+        navigation_row.append(Button(BUTTON_BACK))
+    if can_go_next:
+        navigation_row.append(Button(BUTTON_NEXT))
+
+    return [navigation_row, [Button(BUTTON_CANCEL)]]
+
+
+def format_question_text(question: str, previous_answer: str | None = None) -> str:
+    text = f"Введите:\n{question}"
+    if previous_answer:
+        text += (
+            f"\n\nВаш ответ:\n{previous_answer}"
+            "\n\nЕсли хотите изменить ответ, просто отправьте новый в текущем сообщении."
+        )
+    return text
 
 
 def flow_selection_text(flow_id: FlowId) -> str:

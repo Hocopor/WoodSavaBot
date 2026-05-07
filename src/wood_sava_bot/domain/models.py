@@ -47,6 +47,8 @@ class InboundMessage:
     is_start: bool = False
     is_cancel: bool = False
     is_home: bool = False
+    is_back: bool = False
+    is_next: bool = False
     selected_flow: FlowId | None = None
     thread_id: int | None = None
     callback_query_id: str | None = None
@@ -73,3 +75,10 @@ class AdminGroupSnapshot:
     chat_type: str
     forum_enabled: bool
     is_active: bool
+
+
+@dataclass(slots=True)
+class FlowStepStateSnapshot:
+    step_index: int
+    answer_preview: str
+    admin_message_ids: list[int]

@@ -9,8 +9,10 @@ import httpx
 from wood_sava_bot.config import Settings
 from wood_sava_bot.domain.enums import AttachmentKind, FlowId, Platform
 from wood_sava_bot.domain.flows import (
+    BUTTON_BACK,
     BUTTON_CANCEL,
     BUTTON_HOME,
+    BUTTON_NEXT,
     BUTTON_START,
     cancel_buttons,
     detect_flow_from_text,
@@ -139,6 +141,16 @@ class TelegramBotAPI:
             payload["message_thread_id"] = message_thread_id
         return await self._request("copyMessage", payload)
 
+    async def delete_message(
+        self,
+        chat_id: int | str,
+        message_id: int,
+    ) -> bool:
+        return await self._request(
+            "deleteMessage",
+            {"chat_id": chat_id, "message_id": message_id},
+        )
+
     async def create_forum_topic(
         self,
         chat_id: int,
@@ -239,10 +251,11 @@ class TelegramAdminHub:
         session: SessionSnapshot,
         message: InboundMessage,
         question: str | None,
-    ) -> None:
+    ) -> list[int]:
         if session.telegram_topic_id is None:
             raise RuntimeError("Telegram topic is not linked to session")
         admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
+        admin_message_ids: list[int] = []
 
         if question:
             answer = summarize_answer(message)
@@ -252,6 +265,7 @@ class TelegramAdminHub:
                 message_thread_id=session.telegram_topic_id,
             )
             self._assert_sent_to_topic(result, session.telegram_topic_id)
+            admin_message_ids.append(result["message_id"])
         elif message.text:
             result = await self._api.send_message(
                 admin_chat_id,
@@ -259,9 +273,11 @@ class TelegramAdminHub:
                 message_thread_id=session.telegram_topic_id,
             )
             self._assert_sent_to_topic(result, session.telegram_topic_id)
+            admin_message_ids.append(result["message_id"])
 
         for attachment in message.attachments:
-            await self._relay_attachment(session.telegram_topic_id, attachment)
+            admin_message_ids.extend(await self._relay_attachment(session.telegram_topic_id, attachment))
+        return admin_message_ids
 
     @staticmethod
     def is_missing_topic_error(exc: Exception) -> bool:
@@ -288,36 +304,48 @@ class TelegramAdminHub:
         )
         self._assert_sent_to_topic(result, telegram_topic_id)
 
-    async def _relay_attachment(self, topic_id: int, attachment: Attachment) -> None:
+    async def delete_topic_messages(self, message_ids: list[int]) -> None:
+        if not message_ids:
+            return
+        admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
+        for message_id in message_ids:
+            try:
+                await self._api.delete_message(admin_chat_id, message_id)
+            except TelegramAPIError:
+                LOGGER.debug("Telegram admin message %s is already missing", message_id)
+
+    async def _relay_attachment(self, topic_id: int, attachment: Attachment) -> list[int]:
         if attachment.source_chat_id and attachment.source_message_id and attachment.source_file_id:
             admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
-            await self._api.copy_message(
+            result = await self._api.copy_message(
                 admin_chat_id,
                 attachment.source_chat_id,
                 attachment.source_message_id,
                 message_thread_id=topic_id,
             )
-            return
+            return [result["message_id"]]
         if attachment.url:
             if attachment.kind is AttachmentKind.IMAGE:
                 admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
-                await self._api.send_photo(
+                result = await self._api.send_photo(
                     admin_chat_id,
                     attachment.url,
                     caption=attachment.name,
                     message_thread_id=topic_id,
                 )
+                self._assert_sent_to_topic(result, topic_id)
             else:
                 admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
-                await self._api.send_document(
+                result = await self._api.send_document(
                     admin_chat_id,
                     attachment.url,
                     caption=attachment.name,
                     message_thread_id=topic_id,
                 )
-            return
+                self._assert_sent_to_topic(result, topic_id)
+            return [result["message_id"]]
         await self.notify_topic(topic_id, "Не удалось переслать вложение в Telegram-тему.")
-
+        return []
 
     @staticmethod
     def _assert_sent_to_topic(result: dict[str, Any], expected_topic_id: int) -> None:
@@ -485,6 +513,8 @@ class TelegramCustomerAdapter:
             is_start=normalized_text == "/start" or normalized_text.lower() == BUTTON_START.lower(),
             is_cancel=normalized_text.lower() == BUTTON_CANCEL.lower(),
             is_home=normalized_text.lower() == BUTTON_HOME.lower(),
+            is_back=normalized_text.lower() == BUTTON_BACK.lower(),
+            is_next=normalized_text.lower() == BUTTON_NEXT.lower(),
             selected_flow=flow,
             thread_id=payload.get("message_thread_id"),
             raw_event=payload,
@@ -508,6 +538,8 @@ class TelegramCustomerAdapter:
             is_start=(data or "").strip() == "/start" or (data or "").strip().lower() == BUTTON_START.lower(),
             is_cancel=(data or "").strip().lower() == BUTTON_CANCEL.lower(),
             is_home=(data or "").strip().lower() == BUTTON_HOME.lower(),
+            is_back=(data or "").strip().lower() == BUTTON_BACK.lower(),
+            is_next=(data or "").strip().lower() == BUTTON_NEXT.lower(),
             selected_flow=flow,
             thread_id=message.get("message_thread_id"),
             callback_query_id=payload.get("id"),

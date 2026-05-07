@@ -32,6 +32,8 @@
 - [x] Implement full customer flows with `Вопрос: ответ` forwarding
 - [x] Implement customer attachment intake and forwarding
 
+- [x] Add persistent `Back` / `Next` questionnaire navigation with answer previews and admin-topic cleanup for replaced answers
+
 ## Phase 5 - VK Adapter
 - [x] Implement `VK` long poll intake
 - [x] Implement platform-specific start UX with the approved first-interaction behavior
@@ -54,10 +56,12 @@
 
 ## Phase 8 - Testing
 - [~] Add unit tests for flow engine, persistent state transitions, and operator-facing flow notices
+- [x] Add regression coverage for questionnaire backtracking, answer replacement, and admin-topic cleanup
 - [] Add adapter-level tests for topic routing and delivery mapping
 - [] Add integration checks for `Telegram`, `VK`, and `MAX` critical paths
 - [] Add restart/recovery test coverage for durable routing state
 - [] Run acceptance verification against the approved specification
+
 
 ## Phase 9 - Deployment And Operations
 - [~] Prepare `Ubuntu 24` deployment layout
@@ -91,5 +95,6 @@
 - When a customer chooses flow `1`, `2`, or `3`, the admin topic should receive an explicit notice about that selection so managers can immediately see the chosen branch.
 - The branch-selection notice is now emitted before the first question and covered by automated tests.
 - Telegram topic self-healing now also treats "accepted but delivered outside the requested topic" as a broken-topic condition.
+- Backtracking UX requires persistent per-step answer state plus admin-message IDs so replaced answers can be deleted from Telegram topics after edits.
 - Current codebase now includes a runnable Python service skeleton with polling adapters for `Telegram`, `VK`, and `MAX`.
 - Remaining highest-risk area is real API verification for uploads, media edge cases, and production-specific platform quirks.

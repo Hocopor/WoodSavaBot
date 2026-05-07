@@ -1,12 +1,16 @@
 from wood_sava_bot.domain.enums import FlowId, Platform
 from wood_sava_bot.domain.flows import (
+    BUTTON_BACK,
     BUTTON_CANCEL,
     BUTTON_HOME,
+    BUTTON_NEXT,
     BUTTON_START,
     FLOW_DEFINITIONS,
     WELCOME_TEXT,
     detect_flow_from_text,
     flow_selection_text,
+    format_question_text,
+    question_buttons,
     topic_title,
 )
 
@@ -28,17 +32,17 @@ def test_topic_title_uses_platform_prefix() -> None:
     telegram_title = topic_title(Platform.TELEGRAM, "Олег", "mako")
     vk_title = topic_title(Platform.VK, "Олег", None)
 
-    assert telegram_title.endswith("@mako")
-    assert "Олег" in telegram_title
-    assert vk_title.endswith("без_ника")
-    assert "Олег" in vk_title
+    assert telegram_title == "ТГ,Олег,@mako"
+    assert vk_title == "ВК,Олег,без_ника"
 
 
 def test_button_constants_exist() -> None:
-    assert BUTTON_START
-    assert BUTTON_CANCEL
-    assert BUTTON_HOME
-    assert BUTTON_START in WELCOME_TEXT or BUTTON_START == "Старт"
+    assert BUTTON_START == "Старт"
+    assert BUTTON_CANCEL == "Отмена"
+    assert BUTTON_HOME == "На главную"
+    assert BUTTON_BACK == "Прошлый вопрос"
+    assert BUTTON_NEXT == "Следующий вопрос"
+    assert BUTTON_START not in WELCOME_TEXT
 
 
 def test_flow_selection_text_contains_operator_context() -> None:
@@ -50,3 +54,18 @@ def test_flow_selection_text_contains_operator_context() -> None:
     assert "2" in designer_project
     assert "3" in custom_dimensions
     assert ready_made != designer_project != custom_dimensions
+
+
+def test_question_buttons_include_back_and_next_when_available() -> None:
+    buttons = question_buttons(can_go_back=True, can_go_next=True)
+    labels = [button.label for row in buttons for button in row]
+    assert BUTTON_BACK in labels
+    assert BUTTON_NEXT in labels
+    assert BUTTON_CANCEL in labels
+
+
+def test_format_question_text_includes_previous_answer_hint() -> None:
+    text = format_question_text("Какой цвет?", previous_answer="Белый")
+    assert "Введите:" in text
+    assert "Ваш ответ:" in text
+    assert "Белый" in text

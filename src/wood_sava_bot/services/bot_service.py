@@ -5,16 +5,20 @@ from typing import Any
 
 from wood_sava_bot.domain.enums import FlowId, Platform
 from wood_sava_bot.domain.flows import (
+    BUTTON_BACK,
     BUTTON_HOME,
+    BUTTON_NEXT,
     BUTTON_START,
     FLOW_DEFINITIONS,
     START_TEXT,
     THANK_YOU_TEXT,
     WELCOME_TEXT,
     cancel_buttons,
+    format_question_text,
     flow_selection_text,
     home_buttons,
     main_menu_buttons,
+    question_buttons,
 )
 from wood_sava_bot.domain.models import InboundMessage, OutboundMessage, SessionSnapshot
 from wood_sava_bot.storage.repositories import SessionRepository
@@ -61,6 +65,40 @@ class BotService:
             await self._adapters[message.platform].prompt_start(message.chat_id)
             return
 
+        if message.is_back and session.current_flow is not None:
+            if session.current_step <= 0:
+                await self._send_current_question(session)
+                return
+            session = await self._repository.advance_flow(
+                message.platform,
+                message.user_id,
+                session.current_step - 1,
+            )
+            await self._send_current_question(session)
+            return
+
+        if message.is_next and session.current_flow is not None:
+            current_state = await self._repository.get_step_state(
+                message.platform,
+                message.user_id,
+                session.current_step,
+            )
+            if current_state is None:
+                await self._send_current_question(session)
+                return
+            flow_definition = FLOW_DEFINITIONS[session.current_flow]
+            next_step = session.current_step + 1
+            if next_step >= len(flow_definition.questions):
+                await self._send_current_question(session)
+                return
+            session = await self._repository.advance_flow(
+                message.platform,
+                message.user_id,
+                next_step,
+            )
+            await self._send_current_question(session)
+            return
+
         if session.current_flow is None:
             flow = message.selected_flow
             if flow is None:
@@ -77,7 +115,7 @@ class BotService:
         flow_definition = FLOW_DEFINITIONS[session.current_flow]
         question = flow_definition.questions[session.current_step]
         session = await self._ensure_topic(session)
-        await self._relay_customer_message(session, message, question)
+        await self._replace_step_answer(session, message, question)
         next_step = session.current_step + 1
 
         if next_step >= len(flow_definition.questions):
@@ -129,9 +167,9 @@ class BotService:
         session: SessionSnapshot,
         message: InboundMessage,
         question: str | None,
-    ) -> None:
+    ) -> list[int]:
         try:
-            await self._admin_hub.relay_user_message(session, message, question)
+            return await self._admin_hub.relay_user_message(session, message, question)
         except Exception as exc:
             if not self._admin_hub.is_missing_topic_error(exc):
                 raise
@@ -146,7 +184,7 @@ class BotService:
                 session.platform_user_id,
             )
             session = await self._ensure_topic(session)
-            await self._admin_hub.relay_user_message(session, message, question)
+            return await self._admin_hub.relay_user_message(session, message, question)
 
     async def _notify_topic(self, session: SessionSnapshot, text: str) -> SessionSnapshot:
         if session.telegram_topic_id is None:
@@ -181,10 +219,60 @@ class BotService:
         if session.current_flow is None:
             raise RuntimeError("Current flow is not set")
         flow = FLOW_DEFINITIONS[session.current_flow]
+        current_state = await self._repository.get_step_state(
+            session.platform,
+            session.platform_user_id,
+            session.current_step,
+        )
         await self._adapters[session.platform].send_outbound(
             session,
             OutboundMessage(
-                text=flow.questions[session.current_step],
-                buttons=cancel_buttons(),
+                text=format_question_text(
+                    flow.questions[session.current_step],
+                    previous_answer=current_state.answer_preview if current_state else None,
+                ),
+                buttons=question_buttons(
+                    can_go_back=session.current_step > 0,
+                    can_go_next=current_state is not None,
+                ),
             ),
         )
+
+    async def _replace_step_answer(
+        self,
+        session: SessionSnapshot,
+        message: InboundMessage,
+        question: str,
+    ) -> None:
+        obsolete_states = await self._repository.clear_step_states_from(
+            session.platform,
+            session.platform_user_id,
+            session.current_step,
+        )
+        obsolete_message_ids = [
+            message_id
+            for state in obsolete_states
+            for message_id in state.admin_message_ids
+        ]
+        if obsolete_message_ids:
+            await self._admin_hub.delete_topic_messages(obsolete_message_ids)
+
+        admin_message_ids = await self._relay_customer_message(session, message, question)
+        await self._repository.save_step_state(
+            session.platform,
+            session.platform_user_id,
+            session.current_step,
+            self._answer_preview(message),
+            admin_message_ids,
+        )
+
+    @staticmethod
+    def _answer_preview(message: InboundMessage) -> str:
+        if message.text and message.attachments:
+            return f"{message.text} (+ {len(message.attachments)} влож.)"
+        if message.text:
+            return message.text
+        if message.attachments:
+            names = [attachment.name or attachment.kind.value for attachment in message.attachments]
+            return ", ".join(names)
+        return "пустой ответ"

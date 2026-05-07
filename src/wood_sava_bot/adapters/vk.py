@@ -11,7 +11,15 @@ import httpx
 
 from wood_sava_bot.config import Settings
 from wood_sava_bot.domain.enums import AttachmentKind, Platform
-from wood_sava_bot.domain.flows import BUTTON_CANCEL, BUTTON_HOME, BUTTON_START, detect_flow_from_text, start_buttons
+from wood_sava_bot.domain.flows import (
+    BUTTON_BACK,
+    BUTTON_CANCEL,
+    BUTTON_HOME,
+    BUTTON_NEXT,
+    BUTTON_START,
+    detect_flow_from_text,
+    start_buttons,
+)
 from wood_sava_bot.domain.models import Attachment, InboundMessage, OutboundMessage, SessionSnapshot
 
 LOGGER = logging.getLogger(__name__)
@@ -134,6 +142,8 @@ class VKCustomerAdapter:
             is_start=text.lower() == BUTTON_START.lower(),
             is_cancel=text.lower() == BUTTON_CANCEL.lower(),
             is_home=text.lower() == BUTTON_HOME.lower(),
+            is_back=text.lower() == BUTTON_BACK.lower(),
+            is_next=text.lower() == BUTTON_NEXT.lower(),
             selected_flow=detect_flow_from_text(text),
             raw_event=update,
         )
