@@ -65,7 +65,7 @@ class BotService:
             if flow is None:
                 await self._send_welcome(session)
                 if session.telegram_topic_id:
-                    await self._admin_hub.relay_user_message(session, message, question=None)
+                    await self._relay_customer_message(session, message, question=None)
                 return
             session = await self._repository.start_flow(message.platform, message.user_id, flow)
             await self._send_current_question(session)
@@ -74,7 +74,7 @@ class BotService:
         flow_definition = FLOW_DEFINITIONS[session.current_flow]
         question = flow_definition.questions[session.current_step]
         session = await self._ensure_topic(session)
-        await self._admin_hub.relay_user_message(session, message, question)
+        await self._relay_customer_message(session, message, question)
         next_step = session.current_step + 1
 
         if next_step >= len(flow_definition.questions):
@@ -121,6 +121,30 @@ class BotService:
             topic_id,
         )
 
+    async def _relay_customer_message(
+        self,
+        session: SessionSnapshot,
+        message: InboundMessage,
+        question: str | None,
+    ) -> None:
+        try:
+            await self._admin_hub.relay_user_message(session, message, question)
+        except Exception as exc:
+            if not self._admin_hub.is_missing_topic_error(exc):
+                raise
+            LOGGER.warning(
+                "Telegram topic %s is missing for %s:%s, recreating",
+                session.telegram_topic_id,
+                session.platform.value,
+                session.platform_user_id,
+            )
+            session = await self._repository.clear_topic_id(
+                session.platform,
+                session.platform_user_id,
+            )
+            session = await self._ensure_topic(session)
+            await self._admin_hub.relay_user_message(session, message, question)
+
     async def _send_welcome(self, session: SessionSnapshot) -> None:
         await self._adapters[session.platform].send_outbound(
             session,
@@ -138,4 +162,3 @@ class BotService:
                 buttons=cancel_buttons(),
             ),
         )
-

@@ -173,6 +173,25 @@ class SessionRepository:
             await session.refresh(record)
             return self._to_snapshot(record)
 
+    async def clear_topic_id(
+        self,
+        platform: Platform,
+        platform_user_id: str,
+    ) -> SessionSnapshot:
+        async with self._session_factory() as session:
+            record = await session.scalar(
+                select(UserSessionModel).where(
+                    UserSessionModel.platform == platform.value,
+                    UserSessionModel.platform_user_id == platform_user_id,
+                )
+            )
+            if record is None:
+                raise LookupError("Session not found for clear_topic_id")
+            record.telegram_topic_id = None
+            await session.commit()
+            await session.refresh(record)
+            return self._to_snapshot(record)
+
     def _to_snapshot(self, record: UserSessionModel) -> SessionSnapshot:
         return SessionSnapshot(
             platform=Platform(record.platform),

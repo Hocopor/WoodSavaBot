@@ -24,6 +24,23 @@ from wood_sava_bot.domain.models import Attachment, Button, InboundMessage, Outb
 LOGGER = logging.getLogger(__name__)
 
 
+class TelegramAPIError(RuntimeError):
+    def __init__(self, method: str, body: dict[str, Any]) -> None:
+        self.method = method
+        self.body = body
+        description = body.get("description", "Unknown Telegram API error")
+        super().__init__(f"Telegram API error for {method}: {description}")
+
+    @property
+    def description(self) -> str:
+        return str(self.body.get("description", ""))
+
+    @property
+    def error_code(self) -> int | None:
+        code = self.body.get("error_code")
+        return int(code) if isinstance(code, int) else None
+
+
 class TelegramBotAPI:
     def __init__(self, token: str, timeout_seconds: int) -> None:
         self._token = token
@@ -160,7 +177,7 @@ class TelegramBotAPI:
         response.raise_for_status()
         body = response.json()
         if not body.get("ok", False):
-            raise RuntimeError(f"Telegram API error for {method}: {body}")
+            raise TelegramAPIError(method, body)
         return body["result"]
 
 
@@ -197,8 +214,6 @@ class TelegramAdminHub:
         self._admin_chat_resolver = admin_chat_resolver
 
     async def ensure_topic(self, session: SessionSnapshot) -> int:
-        if session.telegram_topic_id is not None:
-            return session.telegram_topic_id
         admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
         topic = await self._api.create_forum_topic(
             admin_chat_id,
@@ -232,6 +247,20 @@ class TelegramAdminHub:
 
         for attachment in message.attachments:
             await self._relay_attachment(session.telegram_topic_id, attachment)
+
+    @staticmethod
+    def is_missing_topic_error(exc: Exception) -> bool:
+        if not isinstance(exc, TelegramAPIError):
+            return False
+        description = exc.description.lower()
+        return (
+            exc.error_code == 400
+            and (
+                "message thread not found" in description
+                or "message thread is not found" in description
+                or "topic" in description and "not found" in description
+            )
+        )
 
     async def notify_topic(self, telegram_topic_id: int, text: str) -> None:
         admin_chat_id = await self._admin_chat_resolver.get_required_admin_chat_id()
